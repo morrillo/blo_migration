@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+# Imports python libraries
 
 import sys
 import xmlrpc.client
@@ -15,6 +16,7 @@ from odoo import fields, models, api
 from odoo.exceptions import ValidationError
 from datetime import datetime
 
+# creates original_id fields on models
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
@@ -57,17 +59,28 @@ class ProductTemplae(models.Model):
 
     original_id = fields.Integer('Original ID')
 
+# In res.company model (for no particular reason) I create two methods for migrating invoices
 
 class ResCompany(models.Model):
     _inherit = 'res.company'
 
+    # receives as parameter a dictionary which contains the following fields:
+    # product_id, qty, discount, price_unit, original_id
+    # returns a dictionary with the invoice_line formatted for being created 
+    # with the invoice
     def _prepare_invoice_line(self, invoice_line):
+        # Validates that product is present in master data
+        # by check the original_id field
+        # original_id holds the id from previous Odoo database
+        # Cancels method execution in case of product not being present 
+        # in the database
         product = self.env['product.product'].search(
             [('original_id', '=', invoice_line['product_id'])])
         if not product:
             raise ValidationError('There is no product defined for original ID %s' % (
                 invoice_line['product_id']))
-
+        # Formats the invoice_line dictionary as a different dictionary
+        # Adds product taxes to the return dictionary
         return {
             'product_id': product.id,
             'quantity': invoice_line['qty'],

@@ -176,7 +176,6 @@ class ResCompany(models.Model):
                 'currency_id': self.env.user.company_id.currency_id.id,
                 'invoice_line_ids': [(0, None, self._prepare_invoice_line(line)) for line in invoice_lines],
             }
-            # 'invoice_line_ids': [(0, None, self._prepare_invoice_line(line)) for line in self.lines],
             # Checks the invoice has not been created before
             move_id = self.env['account.move'].search(
                 [('original_id', '=', invoice_id)])
@@ -185,9 +184,13 @@ class ResCompany(models.Model):
                 # it is not posted yet
                 move_id = self.env['account.move'].create(vals_move)
 
+    # method for migration invoices from Odoo 12 to Odoo 14
+    # with SQL statements using psycopg2 database
     @api.model
     def migrate_sql_invoices(self):
-        #raise ValidationError('estamos aca')
+        # Pulls connection parameters from system parameters
+        # If any of the parameters is not present, a message error
+        # is displayed
         dbname = self.env['ir.config_parameter'].get_param('SQL_DBNAME', None)
         host = self.env['ir.config_parameter'].get_param('SQL_HOST', None)
         username = self.env['ir.config_parameter'].get_param('SQL_USER', None)
@@ -195,6 +198,7 @@ class ResCompany(models.Model):
         if not dbname or not host or not username or not pwd:
             raise ValidationError(
                 'One of the connection parameters is missing')
+        # Connects to the database, in case of problems, a message error is displayed
         connect_string = "dbname='%s' user='%s' host='%s' password='%s'" % (
             dbname, username, host, pwd)
         try:
@@ -203,6 +207,7 @@ class ResCompany(models.Model):
         except:
             raise ValidationError("I am unable to connect to the database")
 
+        # Queries account_invoice table for customer invoices/refunds in open/paid status
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
             cur.execute(
@@ -210,7 +215,9 @@ class ResCompany(models.Model):
         except:
             raise ValidationError('Problems querying the invoice table')
         rows = cur.fetchall()
+        # Iterate fetched row
         for invoice_data in rows:
+            # Checks journal and partner are present in target database
             journal_id = self.env['account.journal'].search(
                 [('original_id', '=', invoice_data['journal_id'])])
             partner_id = self.env['res.partner'].search(
@@ -221,6 +228,7 @@ class ResCompany(models.Model):
             if not journal_id:
                 raise ValidationError(
                     'There is no journal for original_ID %s' % (invoice_data['journal_id']))
+            # Pulls invoice_line information from source database for current invoice
             invoice_id = invoice_data['id']
             cur_lines = conn.cursor(
                 cursor_factory=psycopg2.extras.RealDictCursor)
@@ -231,6 +239,8 @@ class ResCompany(models.Model):
                 raise ValidationError('Problems querying the invoice table')
             invoice_lines = []
             row_lines = cur_lines.fetchall()
+            # Pulls invoice_line information from source database for current invoice
+            # Appends invoice_line information to invoice_lines list
             for invoice_line in row_lines:
                 vals_line = {
                     'product_id': invoice_line['product_id'],
@@ -241,6 +251,8 @@ class ResCompany(models.Model):
                     'original_id': invoice_line['id'],
                 }
                 invoice_lines.append(vals_line)
+            # Creates dictionary with account.move values
+            # iterates invoice_lines list in order to update invoice_line_ids field
             vals_move = {
                 'type': invoice_data['type'],
                 'invoice_date': invoice_data['date_invoice'],
@@ -252,9 +264,12 @@ class ResCompany(models.Model):
                 'currency_id': self.env.user.company_id.currency_id.id,
                 'invoice_line_ids': [(0, None, self._prepare_invoice_line(line)) for line in invoice_lines],
             }
+            # Checks the invoice has not been created before
             move_id = self.env['account.move'].search(
                 [('original_id', '=', invoice_id)])
             if not move_id:
+                # In case it was not created, creates the move. Move is in draft state
+                # it is not posted yet
                 move_id = self.env['account.move'].create(vals_move)
             cur_lines.close()
         cur.close()

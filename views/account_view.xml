@@ -1,0 +1,94 @@
+<odoo>
+
+<record model="ir.ui.view" id="blo_account_invoice_tree">
+	<field name="name">blo.account.invoice.tree</field>
+	<field name="model">account.move</field>
+	<field name="inherit_id" ref="account.view_invoice_tree"></field>
+	<field name="arch" type="xml">
+		<field name="type" position="after">
+			<field name="original_id" optional="hide" />
+		</field>
+	</field>
+</record>
+
+<record model="ir.ui.view" id="blo_account_move_tree">
+	<field name="name">blo.account.move.tree</field>
+	<field name="model">account.move</field>
+	<field name="inherit_id" ref="account.view_move_tree"></field>
+	<field name="arch" type="xml">
+		<field name="currency_id" position="after">
+			<field name="original_id" optional="hide" />
+		</field>
+	</field>
+</record>
+
+<record model="ir.ui.view" id="blo_account_move_line_tree">
+	<field name="name">blo.account.move.tree</field>
+	<field name="model">account.move.line</field>
+	<field name="inherit_id" ref="account.view_move_line_tree"></field>
+	<field name="arch" type="xml">
+		<xpath expr="//tree" positional="inside">
+			<field name="original_id" optional="hide"/>
+		</xpath>
+	</field>
+</record>
+
+<record model="ir.ui.view" id="blo_res_partner_form">
+	<field name="name">blo.res.partner.form</field>
+	<field name="model">res.partner</field>
+	<field name="inherit_id" ref="base.view_partner_form"></field>
+	<field name="arch" type="xml">
+		<field name="ref" position="after">
+			<field name="original_id" />
+		</field>
+	</field>
+</record>
+
+<record model="ir.ui.view" id="blo_account_journal_tree">
+	<field name="name">blo.account.journal.tree</field>
+	<field name="model">account.journal</field>
+	<field name="inherit_id" ref="account.view_account_journal_tree"></field>
+	<field name="arch" type="xml">
+		<field name="company_id" position="after">
+			<field name="original_id" optional="hide" />
+		</field>
+	</field>
+</record>
+
+<record model="ir.ui.view" id="blo_account_journal_form">
+	<field name="name">blo.account.journal.form</field>
+	<field name="model">account.journal</field>
+	<field name="inherit_id" ref="account.view_account_journal_form"></field>
+	<field name="arch" type="xml">
+		<field name="code" position="after">
+			<field name="original_id" />
+		</field>
+	</field>
+</record>
+
+
+<record model="ir.ui.view" id="blo_product_template_tree">
+	<field name="name">blo.product.template.tree</field>
+	<field name="model">product.template</field>
+	<field name="inherit_id" ref="account.product_template_view_tree"></field>
+	<field name="arch" type="xml">
+		<field name="taxes_id" position="before">
+			<field name="original_id" optional="hide" />
+		</field>
+	</field>
+</record>
+
+<record model="ir.ui.view" id="blo_product_template_form">
+	<field name="name">blo.product.template.form</field>
+	<field name="model">product.template</field>
+	<field name="inherit_id" ref="product.product_template_form_view"></field>
+	<field name="arch" type="xml">
+		<field name="currency_id" position="before">
+			<field name="original_id" />
+		</field>
+	</field>
+</record>
+
+
+
+</odoo>

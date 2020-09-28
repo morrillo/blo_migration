@@ -112,7 +112,7 @@ class ResCompany(models.Model):
                         }
                 invoice_lines.append(vals_line)
             vals_move = {
-                    'type': invoice_data['type'],
+                    'move_type': invoice_data['type'],
                     'invoice_date': invoice_data['date_invoice'],
                     'journal_id': journal_id.id,
                     'invoice_origin': invoice_data['origin'],

@@ -18,6 +18,7 @@ from datetime import datetime
 
 # creates original_id fields on models
 
+
 class AccountMove(models.Model):
     _inherit = 'account.move'
 
@@ -61,18 +62,19 @@ class ProductTemplae(models.Model):
 
 # In res.company model (for no particular reason) I create two methods for migrating invoices
 
+
 class ResCompany(models.Model):
     _inherit = 'res.company'
 
     # receives as parameter a dictionary which contains the following fields:
     # product_id, qty, discount, price_unit, original_id
-    # returns a dictionary with the invoice_line formatted for being created 
+    # returns a dictionary with the invoice_line formatted for being created
     # with the invoice
     def _prepare_invoice_line(self, invoice_line):
         # Validates that product is present in master data
         # by check the original_id field
         # original_id holds the id from previous Odoo database
-        # Cancels method execution in case of product not being present 
+        # Cancels method execution in case of product not being present
         # in the database
         product = self.env['product.product'].search(
             [('original_id', '=', invoice_line['product_id'])])
@@ -92,8 +94,14 @@ class ResCompany(models.Model):
             'original_id': invoice_line['original_id'],
         }
 
+    # Migrates invoices from Odoo instance
+    # The connection is done with xmlrpc
+
     @api.model
     def migrate_invoices(self):
+        # Pulls connection parameters from system parameters
+        # If any of the parameters is not present, a message error
+        # is displayed
         dbname = self.env['ir.config_parameter'].get_param('DBNAME', None)
         host = self.env['ir.config_parameter'].get_param('HOST', None)
         username = self.env['ir.config_parameter'].get_param('USER', None)
@@ -104,30 +112,45 @@ class ResCompany(models.Model):
 
         url, db, username, password = host, dbname, username, pwd
 
+        # Makes the connection to the remote database
+        # in case there is a problem (which is checked with the uid variable)
+        # an error message is displayed
+
         common = xmlrpc.client.ServerProxy('{}/xmlrpc/2/common'.format(url))
         common.version()
         uid = common.authenticate(db, username, pwd, {})
 
         models = xmlrpc.client.ServerProxy('{}/xmlrpc/2/object'.format(url))
+        if not uid or not models:
+            raise ValidationError(
+                'Connection error.\nPlease check with your administrator')
 
+        # Pulls the IDs from the remote posted invoices
         invoice_ids = models.execute_kw(db, uid, pwd, 'account.invoice', 'search', [
                                         [('state', 'in', ['open', 'paid'])]])
+        # Iterates the IDs of remote invoices
         for invoice_id in invoice_ids:
+            # Reads remote invoice data
             invoice_data = models.execute_kw(
                 db, uid, pwd, 'account.invoice', 'read', [invoice_id])
             invoice_data = invoice_data[0]
+            # Checks remote journal is present in target database
             journal_id = self.env['account.journal'].search(
                 [('original_id', '=', invoice_data['journal_id'][0])])
             if not journal_id:
                 raise ValidationError('There is no journal for original_ID %s' % (
                     invoice_data['journal_id'][0]))
+            # Checks remote invoice partner is present in target database
             partner_id = self.env['res.partner'].search(
                 [('original_id', '=', invoice_data['partner_id'][0])])
             if not partner_id:
                 raise ValidationError('There is no partner_id for original_ID %s' % (
                     invoice_data['partner_id'][0]))
             invoice_lines = []
+            # Iterates remote invoice lines. Adds remote invoice line data
+            # to invoice_lines list
             for invoice_line_id in invoice_data['invoice_line_ids']:
+                # Reads remote invoice_line information
                 line_data = models.execute_kw(
                     db, uid, pwd, 'account.invoice.line', 'read', [invoice_line_id])
                 line_data = line_data[0]
@@ -140,6 +163,8 @@ class ResCompany(models.Model):
                     'original_id': invoice_line_id,
                 }
                 invoice_lines.append(vals_line)
+            # Creates dictionary with account.move values
+            # iterates invoice_lines list in order to update invoice_line_ids field
             vals_move = {
                 'move_type': invoice_data['type'],
                 'invoice_date': invoice_data['date_invoice'],
@@ -152,30 +177,13 @@ class ResCompany(models.Model):
                 'invoice_line_ids': [(0, None, self._prepare_invoice_line(line)) for line in invoice_lines],
             }
             # 'invoice_line_ids': [(0, None, self._prepare_invoice_line(line)) for line in self.lines],
+            # Checks the invoice has not been created before
             move_id = self.env['account.move'].search(
                 [('original_id', '=', invoice_id)])
             if not move_id:
+                # In case it was not created, creates the move. Move is in draft state
+                # it is not posted yet
                 move_id = self.env['account.move'].create(vals_move)
-                # Checks for attachments
-                attachment_ids = models.execute_kw(db, uid, pwd, 'ir.attachment', 'search', [
-                                                   [('res_model', '=', 'account.invoice'), ('res_id', '=', invoice_id)]])
-                for attachment_id in attachment_ids:
-                    attachment_data = models.execute_kw(
-                        db, uid, pwd, 'ir.attachment', 'read', [attachment_id])
-                    attachment_data = attachment_data[0]
-                    vals_attachment = {
-                        'res_model': 'account.move',
-                        'res_id': move_id.id,
-                        'mimetype': 'application/pdf',
-                        'company_id': move_id.company_id.id,
-                        'type': 'binary',
-                        'datas': attachment_data['datas'],
-                        'name': attachment_data['name'],
-                        # 'datas_fname': attachment_data['datas_fname'],
-                        'index_content': 'application',
-                        'res_name': attachment_data['res_name'],
-                    }
-                    #attachment_id = self.env['ir.attachment'].create(vals_attachment)
 
     @api.model
     def migrate_sql_invoices(self):

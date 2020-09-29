@@ -183,6 +183,33 @@ class ResCompany(models.Model):
                 # In case it was not created, creates the move. Move is in draft state
                 # it is not posted yet
                 move_id = self.env['account.move'].create(vals_move)
+                # Checks for attachments
+                # Searchs ir.attachment model for res_model = 'account.invoice' and res_id = to current invoice id
+                attachment_ids = models.execute_kw(db,uid,pwd,'ir.attachment','search',[[('res_model','=','account.invoice'),('res_id','=',invoice_id)]])
+                for attachment_id in attachment_ids:
+                    # Reads attachment data
+                    attachment_data = models.execute_kw(db,uid,pwd,'ir.attachment','read',[attachment_id])
+                    attachment_data = attachment_data[0]
+                    # creates dictionary with data
+                    vals_attachment = {
+                            # model name
+                            'res_model': 'account.move',
+                            # record id
+                            'res_id': move_id.id,
+                            # content type
+                            'mimetype': attachment_data['mimetype'],
+                            'company_id': move_id.company_id.id,
+                            # content type
+                            'type': attachment_data['type'],
+                            # binary data
+                            'datas': attachment_data['datas'],
+                            # record name
+                            'name': attachment_data['name'],
+                            'index_content': 'application',
+                            'res_name': attachment_data['res_name'],
+                            }
+                    # creates attachment
+                    attachment_id = self.env['ir.attachment'].create(vals_attachment)
 
     # method for migration invoices from Odoo 12 to Odoo 14
     # with SQL statements using psycopg2 database
@@ -254,7 +281,7 @@ class ResCompany(models.Model):
             # Creates dictionary with account.move values
             # iterates invoice_lines list in order to update invoice_line_ids field
             vals_move = {
-                'type': invoice_data['type'],
+                'move_type': invoice_data['type'],
                 'invoice_date': invoice_data['date_invoice'],
                 'journal_id': journal_id.id,
                 'invoice_origin': invoice_data['origin'],
